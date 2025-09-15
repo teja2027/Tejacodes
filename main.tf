@@ -1,43 +1,65 @@
+/**
+  * ## Descriptions
+  * 
+  * Terraform module for the creation of a Azure Recovery Service VM backup policy.
+  *
+  */
 
+resource "azurerm_backup_policy_vm" "backup_policy_vm" {
+  name                           = var.name
+  resource_group_name            = var.resource_group_name
+  recovery_vault_name            = var.recovery_vault_name
+  policy_type                    = var.policy_type
+  timezone                       = var.timezone
+  instant_restore_retention_days = var.instant_restore_retention_days
 
-module "recovery_services_vaults" {
-  source   = "../../resources/tf-azurerm-recovery-services-vault"
-  for_each = { for recovery_services_vault in var.recovery_services_vaults : recovery_services_vault.name => recovery_services_vault }
+  dynamic "backup" {
+    for_each = var.backup != null ? [var.backup] : []
 
-  vault_name          = each.key
-  resource_group_name = each.value.resource_group_name
-  location            = try(each.value.location, var.common_vars.location)
-  sku                 = each.value.sku
-  storage_mode_type   = each.value.storage_mode_type
-  soft_delete_enabled = each.value.soft_delete_enabled
-  identity            = each.value.identity
-  vm_backup_policies  = each.value.vm_backup_policies
-  tags                = try(each.value.tags, var.common_vars.tags)
-  common_vars         = var.common_vars
-  private_endpoints             = try(each.value.private_endpoints, [
-    for private_endpoint in each.value.private_endpoints : {
-      name                                 = private_endpoint.name
-      resource_group_name                  = private_endpoint.resource_group_name
-      private_service_connection_name      = private_endpoint.private_service_connection_name
-      is_manual_connection                 = private_endpoint.is_manual_connection
-      subnet_name                          = private_endpoint.subnet_name
-      subnet_vnet_name                     = private_endpoint.subnet_vnet_name
-      subnet_resource_group_name           = private_endpoint.subnet_resource_group_name
-      subnet_subscription_id               = private_endpoint.subnet_subscription_id
-      subresource_names                    = private_endpoint.subresource_names
-      private_dns_zone_name                = private_endpoint.private_dns_zone_name
-      private_dns_zone_resource_group_name = private_endpoint.private_dns_zone_resource_group_name
-      private_dns_zone_subscription_id     = private_endpoint.private_dns_zone_subscription_id
+    content {
+      frequency     = backup.value.frequency
+      time          = backup.value.time
+      hour_interval = backup.value.hour_interval
+      hour_duration = backup.value.hour_duration
+      weekdays      = backup.value.weekdays
     }
-  ])
-  public_network_access_enabled = try(each.value.public_network_access_enabled, false)
+  }
 
-  diagnostic_settings                         = try(each.value.diagnostic_settings, [])
-  log_analytics_workspace_subscription_id     = try(var.monitor_diagnostic_shared_settings.log_analytics_workspace_subscription_id, null)
-  log_analytics_workspace_resource_group_name = try(var.monitor_diagnostic_shared_settings.log_analytics_workspace_resource_group_name, null)
-  log_analytics_workspace_name                = try(var.monitor_diagnostic_shared_settings.log_analytics_workspace_name, null)
+  dynamic "retention_daily" {
+    for_each = var.retention_daily != null ? [var.retention_daily] : []
 
-  providers = {
-    azurerm.logs = azurerm.logs
+    content {
+      count = retention_daily.value.count
+    }
+  }
+
+  dynamic "retention_weekly" {
+    for_each = var.retention_weekly != null ? [var.retention_weekly] : []
+
+    content {
+      count    = retention_weekly.value.count
+      weekdays = retention_weekly.value.weekdays
+    }
+  }
+
+  dynamic "retention_monthly" {
+    for_each = var.retention_monthly != null ? [var.retention_monthly] : []
+
+    content {
+      count    = retention_monthly.value.count
+      weekdays = retention_monthly.value.weekdays
+      weeks    = retention_monthly.value.weeks
+    }
+  }
+
+  dynamic "retention_yearly" {
+    for_each = var.retention_yearly != null ? [var.retention_yearly] : []
+
+    content {
+      count    = retention_yearly.value.count
+      weekdays = retention_yearly.value.weekdays
+      weeks    = retention_yearly.value.weeks
+      months   = retention_yearly.value.months
+    }
   }
 }
